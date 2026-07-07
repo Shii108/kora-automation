@@ -21,7 +21,6 @@ This project covers API smoke/regression checks, user purchase journeys, Stripe 
 - TypeScript
 - PostgreSQL
 - Stripe test checkout
-- GitHub Actions
 - Prettier
 
 ## Project Structure
@@ -149,10 +148,6 @@ Playwright is configured to keep debugging artifacts only when tests fail:
 - Videos on failure
 - Traces on failure
 - HTML report
-
-## Notes
-
-The GitHub Actions workflow installs dependencies and runs Playwright tests. For CI to pass, the target API, user UI, database, and required environment variables must be available to the runner.
 
 ## Possible Future Improvements
 
