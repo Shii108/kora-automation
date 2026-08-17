@@ -1,0 +1,144 @@
+name: Kora automation CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  repository_dispatch:
+    types: [backend-deployed]
+  workflow_dispatch:
+    inputs:
+      confirm_remote_run:
+        description: 'I confirm this run may create test data in the configured environment'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Type-check
+        run: npm run typecheck
+
+  e2e:
+    name: Playwright API and UI tests
+    if: >-
+      github.event.repository.private &&
+      (github.event_name == 'repository_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && inputs.confirm_remote_run))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      API_URL: ${{ secrets.API_URL }}
+      ADMIN_URL: ${{ secrets.ADMIN_URL }}
+      USER_URL: ${{ secrets.USER_URL }}
+      EMAIL_INBOX_URL: ${{ secrets.EMAIL_INBOX_URL }}
+      ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      ALLOW_REMOTE_TESTS: 'true'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify required test secrets exist
+        shell: bash
+        run: |
+          test -n "$API_URL" || { echo 'Missing repository variable API_URL'; exit 1; }
+          test -n "$ADMIN_URL" || { echo 'Missing repository variable ADMIN_URL'; exit 1; }
+          test -n "$USER_URL" || { echo 'Missing repository variable USER_URL'; exit 1; }
+          test -n "$EMAIL_INBOX_URL" || { echo 'Missing repository variable EMAIL_INBOX_URL'; exit 1; }
+          test -n "$ADMIN_EMAIL" || { echo 'Missing repository secret ADMIN_EMAIL'; exit 1; }
+          test -n "$ADMIN_PASSWORD" || { echo 'Missing repository secret ADMIN_PASSWORD'; exit 1; }
+
+      - name: Run Playwright tests
+        run: npm test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  report-back-to-backend:
+    name: Report result to backend repository
+    needs: e2e
+    if: always() && github.event.repository.private && github.event_name == 'repository_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      BACKEND_REPOSITORY: ${{ secrets.BACKEND_REPOSITORY }}
+      BACKEND_CALLBACK_TOKEN: ${{ secrets.BACKEND_CALLBACK_TOKEN }}
+      BACKEND_SHA: ${{ github.event.client_payload.backend_sha }}
+      BACKEND_REF: ${{ github.event.client_payload.backend_ref }}
+
+    steps:
+      - name: Send test result to backend repository
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BACKEND_CALLBACK_TOKEN }}
+          script: |
+            const repository = process.env.BACKEND_REPOSITORY;
+            const token = process.env.BACKEND_CALLBACK_TOKEN;
+            if (!repository || !token) {
+              core.warning('Set BACKEND_REPOSITORY and BACKEND_CALLBACK_TOKEN to send the result back.');
+              return;
+            }
+
+            const separator = repository.indexOf('/');
+            if (separator < 1 || separator === repository.length - 1) {
+              core.setFailed('BACKEND_REPOSITORY must use the owner/repository format.');
+              return;
+            }
+
+            const owner = repository.slice(0, separator);
+            const repo = repository.slice(separator + 1);
+            await github.rest.repos.createDispatchEvent({
+              owner,
+              repo,
+              event_type: 'automation-complete',
+              client_payload: {
+                status: '${{ needs.e2e.result }}',
+                automation_run_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+                backend_sha: process.env.BACKEND_SHA || '',
+                backend_ref: process.env.BACKEND_REF || '',
+              },
+            });

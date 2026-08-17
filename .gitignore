@@ -1,0 +1,17 @@
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# Local reports, generated artifacts, and scratch files
+/output/
+/tmp/
