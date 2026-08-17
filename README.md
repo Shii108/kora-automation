@@ -115,12 +115,12 @@ npm run test:report
 
 The workflow is stored at `.github/workflows/ci.yml`.
 
-| Trigger | Quality checks | Playwright |
-| --- | --- | --- |
-| Push | Yes | No |
-| Pull request | Yes | No |
-| Confirmed manual run in a private repository | Yes | Yes |
-| `repository_dispatch: backend-deployed` in a private repository | Yes | Yes |
+| Trigger                                                         | Quality checks | Playwright |
+| --------------------------------------------------------------- | -------------- | ---------- |
+| Push                                                            | Yes            | No         |
+| Pull request                                                    | Yes            | No         |
+| Confirmed manual run in a private repository                    | Yes            | Yes        |
+| `repository_dispatch: backend-deployed` in a private repository | Yes            | Yes        |
 
 The Playwright job uploads its HTML report even when the test job fails. A deployment-triggered
 run can send an `automation-complete` callback to the backend repository with the test result,

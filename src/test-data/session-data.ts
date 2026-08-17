@@ -39,9 +39,7 @@ function getTomorrowDate() {
   }).formatToParts(new Date());
   const getPart = (type: 'year' | 'month' | 'day') =>
     Number(kathmanduParts.find((part) => part.type === type)?.value);
-  const tomorrow = new Date(
-    Date.UTC(getPart('year'), getPart('month') - 1, getPart('day') + 1),
-  );
+  const tomorrow = new Date(Date.UTC(getPart('year'), getPart('month') - 1, getPart('day') + 1));
 
   return tomorrow.toISOString().slice(0, 10);
 }

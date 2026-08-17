@@ -1,11 +1,7 @@
 import 'dotenv/config';
 import { test, expect } from '@playwright/test';
 import { createUserData } from '../../src/test-data/user-data';
-import {
-  memberLogin,
-  getAdminAccessToken,
-  registerMemberApi,
-} from '../../src/api/auth.api';
+import { memberLogin, getAdminAccessToken, registerMemberApi } from '../../src/api/auth.api';
 
 test.describe('Login API Tests', () => {
   test('Member can register and log in @regression @mutating', async ({ request }) => {
